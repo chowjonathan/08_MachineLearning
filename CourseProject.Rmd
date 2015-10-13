@@ -1,0 +1,111 @@
+---
+title: "Predicting Exercise Method From Accelerometer Data Using Machine Learning"
+author: "Jonathan Chow"
+output: html_document
+---
+
+## 1. Introduction
+
+For the fulfilment of the Practical Machine Learning Course requirements as part of the Coursera Data Science Specialization by Johns Hopkins University, this report seeks to present the methodology of using machine learning to predict the manner of exercise for 20 observations of accelerometer data, given a separate training set of similar observations which is used to build and test a Random Forest model. We find that the model we derive has an out-of-sample error rate of 0.14%.
+
+## 2. Data Processing
+
+### 2.1 Loading Libraries
+
+```{r}
+library(caret)
+library(randomForest)
+```
+
+### 2.2 Loading Dataset
+
+On loading the dataset with the function read.csv() without setting parameters, you would notice a few things:
+
+(1) The first column in each .csv file is the row id. Therefore, on calling read.csv(), row.names can be set to be the first column, so that it will not be loaded as a variable.
+
+(2) There are some variables with the characters "#DIV/0!" (which are probably the result of calculations in which a value is divided by zero), as well as empty cells. Hence, these can be set as NA values using the parameter na.strings. 
+
+```{r}
+trainURL <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+testURL <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+train <- read.csv(trainURL, row.names=1, na.strings = c("#DIV/0!", "NA",""))
+test <- read.csv(testURL, row.names=1, na.strings = c("#DIV/0!", "NA",""))
+```
+
+### 2.3 Cleaning the dataset
+
+After loading the data set, we notice that "train" is a dataset with `r dim(train)[1]` observations of `r dim(train)[2]` variables, and "test" has `r dim(test)[1]` observations of `r dim(test)[2]` variables. 
+
+The only different variable between the data sets is the final column, in which "train" has the classe variable containing the manner of exercise (A to E), and "test" has the problem_id variable containing the problem number according to the assignment submission for grading at the Coursera Practical Machine Learning Course conducted by Johns Hopkins University. 
+
+Let us take a look at a summary of the dataset. To save length, only 2 of the variables are shown.
+
+```{r}
+#To shorten the length of this report, only 2 variables' summaries are shown.
+summary(train[,c(13,25)]) 
+```
+
+We see that many of the variables are like one of these 2 variables. 
+
+(1) They consist entirely of NA values.
+
+(2) They consist a mixture of zero and NA values.
+
+We can remove these variables from the dataset, as they lack variability, or are insignificant to the model building process. This is done in the following code chunk:
+
+```{r}
+keepCols_train <- colSums(is.na(train))==0
+train <- train[,keepCols_train]
+```
+
+We may now proceed with building a prediction model.
+
+## 3. Model Building/Cross Validation
+
+### 3.1 Data Partitioning
+
+Before the model is built, we must first allocate values from the dataset into training (60% of data) and testing (40% of data) sets. The training set will be used to train the model, and the testing set will be used to test the accuracy of the model.
+
+```{r}
+set.seed(12345)
+inTrain <- createDataPartition(y=train$classe,p=0.6,list=FALSE)
+training <- train[inTrain,] 
+testing <- train[-inTrain,]
+```
+
+### 3.2 Model Fitting
+
+Now, we may use the Random Forest method to train the model, using the training set. Since our model aims to predict the manner of exercise, we set the classe variable as the outcome, and all other variables in the training set as predictors. 
+
+```{r}
+fit <- randomForest(classe~.,data=training)
+fit
+```
+
+We see that this model has an internal error rate of 0.15%, which is implies a high internal accuracy of 99.85%. 
+
+### 3.3 Model Testing/Cross Validation
+
+We now use this model to predict the manner of exercise for the testing set, and compare these predictions with the actual manner of exercise using a confusion matrix.
+
+```{r}
+pred <- predict(fit,newdata=testing)
+confusionMatrix(pred, testing$classe)
+```
+
+We can observe that the predictions were accurate 99.86% of the time, which makes the model very reliable. The out-of-sample error rate in this case is 0.14%, which interestingly enough, is lesser than the 0.15% in-sample error rate.
+
+### 4. Predicting Manner of Exercises
+
+We may now use this model to predict the manner of exercise for the 20 observations in the "test" dataset, based on the accelerometer data, and print these exercise types for each observation. 
+
+```{r}
+f.names<-names(sapply(test,is.factor))[sapply(train,is.factor)]
+for (i in 1:length(f.names)){
+  levels(test[[f.names[i]]]) <- levels(training[[f.names[i]]])
+}
+final_pred <- predict(fit,newdata=test)
+final_pred
+```
+
+Upon submission of the predictions, these answers were 100% accurate. Hooray! :D
